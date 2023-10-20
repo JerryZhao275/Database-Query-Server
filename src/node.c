@@ -61,7 +61,177 @@ database partition = {NULL, 0, NULL};
  *         - Set the global partition variable. 
  */
 void request_partition(void) {
-  // TODO: implement this function. 
+  char port[7]; // port[0] is 1st node and port[7] is 8th node
+  rio_t rio;
+  char request[REQUESTLINELEN];
+  port_number_to_str(PARENT_PORT, port);
+  int clientfd = Open_clientfd(HOSTNAME, port);
+
+  if (clientfd < 0) {
+    fprintf(stderr, "stderr: %i\n", errno);
+    return;
+  }
+
+  Rio_readinitb(&rio, clientfd);
+  Rio_writen(clientfd, request, REQUESTLINELEN);
+  Rio_readlineb(&rio, request, REQUESTLINELEN);
+
+  partition.db_size = atoi(request);
+  partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
+
+  if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
+    fprintf(stderr, "stderr: %i\n", errno);
+    free(partition.m_ptr);
+  } 
+  else {
+    build_hash_table(&partition);
+  }
+
+  Close(clientfd);
+}
+
+
+// ADD COMMENT EVENTUALLY
+// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
+void *thread(void *vargp) {
+  int connfd = *((int *)vargp);
+  Pthread_detach(pthread_self()); // line:conc:echoservert:detach
+  Free(vargp);                    // line:conc:echoservert:free
+  rio_t rio;
+  char query[MAXLINE]; // Client query
+  char message[MAXLINE]; // Message written by Rio_writen
+  Rio_readinitb(&rio, connfd);
+
+  while (Rio_readlineb(&rio, query, MAXLINE) != 0) {
+    request_line_to_key(query);
+    // Single key lookup
+    if (strchr(query, ' ') == NULL) {
+      int index = lookup_find(partition.h_table, query);
+      if (index != -1) {
+        bucket bucket = partition.h_table->buckets[index];
+        char values[MAXBUF];
+        value_array_to_str(get_value_array(bucket.word), values, MAXBUF);
+        snprintf(message, sizeof(message), "%s%s", bucket.word, values);
+        Rio_writen(connfd, message, strlen(message));
+      } 
+      else {
+        snprintf(message, sizeof(message), "%s not found\n", query);
+        Rio_writen(connfd, message, strlen(message));
+      }
+    }
+    // Intersection query
+    else {
+      char *key1 = strtok(query, " ");
+      // Get second key by passing NULL into strtok
+      char *key2 = strtok(NULL, " ");
+      int index1 = lookup_find(partition.h_table, key1);
+      int index2 = lookup_find(partition.h_table, key2);
+
+      // Both keys are found
+      if (index1 != -1 && index2 != -1) {
+        bucket bucket1 = partition.h_table->buckets[index1];
+        bucket bucket2 = partition.h_table->buckets[index2];
+        value_array *intersection = get_intersection(get_value_array(bucket1.word), get_value_array(bucket2.word));
+
+        // Valid intersection
+        if (intersection != NULL) {
+          char values[MAXBUF];
+          value_array_to_str(intersection, values, MAXBUF);
+          snprintf(message, sizeof(message), "%s,%s%s", bucket1.word, bucket2.word, values);
+          Rio_writen(connfd, message, strlen(message));
+          free(intersection);
+        }
+      }
+      // One or more keys not found
+      else {
+        if (index1 == -1) {
+          snprintf(message, sizeof(message), "%s not found\n", key1);
+          Rio_writen(connfd, message, strlen(message));
+        }
+        if (index2 == -1) {
+          snprintf(message, sizeof(message), "%s not found\n", key2);
+          Rio_writen(connfd, message, strlen(message));
+        }
+      }
+    }
+  }
+  Close(connfd);
+  return NULL;
+
+
+
+  // int connfd = *((int *)vargp);
+  // Pthread_detach(pthread_self()); // line:conc:echoservert:detach
+  // Free(vargp);                    // line:conc:echoservert:free
+
+  // if (strchr(query, ' ') == NULL) {
+  //   int key_found = 0;
+  //   // Loop through postings file until EOF or key found
+  //   while (Rio_readlineb(&rio, query, MAXLINE) != 0) {
+  //     int connfd = *((int *)vargp);
+  //     Pthread_detach(pthread_self()); // line:conc:echoservert:detach
+  //     Free(vargp);                    // line:conc:echoservert:free
+
+  //     // Single key lookup
+  //     if (strchr(query, ' ') == NULL) {
+  //       int index = lookup_find(partition.h_table, query);
+  //       if (index != -1) {
+  //         bucket bucket = partition.h_table->buckets[index];
+  //         char response[MAXBUF];
+  //         value_array *val_arr = get_value_array(bucket.word);
+  //         value_array_to_str(val_arr, response, MAXBUF);
+          
+  //         Rio_writen(connfd, bucket.word, strlen(bucket.word));
+  //         Rio_writen(connfd, response, strlen(response));
+  //       } 
+  //     }
+  //   }
+  // } 
+  // // Intersection query
+  // else {
+  //   char *key1 = strtok(query, " ");
+  //   // Get second key by passing NULL into strtok
+  //   char *key2 = strtok(NULL, " ");
+
+  //   int found_key1 = 0;
+  //   int found_key2 = 0;
+  //   int *doc_ids1 = NULL;
+  //   int *doc_ids2 = NULL;
+  //   int count1 = 0;
+  //   int count2 = 0;
+
+  //   // Perform intersection and print result if both keys found
+  //   if (found_key1 && found_key2) {
+  //     printf("%s,%s", key1, key2);
+  //     int i = 0;
+  //     int j = 0;
+  //     int last_doc_id = -1;
+
+  //     // Loop to calculate the intersection
+  //     while (i < count1 && j < count2) {
+  //       if (doc_ids1[i] < doc_ids2[j]) {
+  //         i++;
+  //       } else if (doc_ids1[i] > doc_ids2[j]) {
+  //         j++;
+  //       } else {
+  //         if (doc_ids1[i] != last_doc_id) {
+  //           printf(",%d", doc_ids1[i]);
+  //           last_doc_id = doc_ids1[i];
+  //         }
+  //         i++;
+  //         j++;
+  //       }
+  //     }
+  //     printf("\n");
+  //   } 
+  //   else {
+  //     if (!found_key1) printf("%s not found\n", key1);
+  //     if (!found_key2) printf("%s not found\n", key2);
+  //   }
+  // }
+  // Close(connfd);
+  // return NULL;
+
 }
 
 /** @brief The main server loop for a node. This will be called by a node after
@@ -72,8 +242,23 @@ void request_partition(void) {
  *         use to accept incoming connections. This file descriptor is stored in
  *         NODES[NODE_ID].listen_fd. 
 */
+// ADD COMMENT EVENTUALLY
+// main function in echoservert.c
+// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
 void node_serve(void) {
-  // TODO: implement this function. 
+  int listenfd, *connfdp;
+  socklen_t clientlen;
+  struct sockaddr_storage clientaddr;
+  pthread_t tid;
+
+  listenfd = NODES[NODE_ID].listen_fd;
+
+  while (1) {
+    clientlen = sizeof(struct sockaddr_storage);
+    connfdp = Malloc(sizeof(int));                              // line:conc:echoservert:beginmalloc
+    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen); // line:conc:echoservert:endmalloc
+    Pthread_create(&tid, NULL, thread, connfdp);
+  }
 }
 
 /** @brief Called after a child process is forked. Initialises all information
