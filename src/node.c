@@ -179,23 +179,26 @@ void *thread(void *vargp) {
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
+          Rio_writen(connfd, message, strlen(message));
         }
         else {
           sprintf(message, "%s not found\n", query);
+          Rio_writen(connfd, message, strlen(message));
         }
       } 
       else {
         values = forward_request(query, node);
         if (values == NULL) {
           sprintf(message, "%s not found\n", query);
+          Rio_writen(connfd, message, strlen(message));
         } 
         else {
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
+          Rio_writen(connfd, message, strlen(message));
         }
       }
-      Rio_writen(connfd, message, strlen(message));
     }
     // Intersection query
     else {
@@ -240,23 +243,25 @@ void *thread(void *vargp) {
         }
       }
 
-
       if (values1 == NULL && values2 == NULL) {
         sprintf(message, "%s not found\n%s not found\n", key1, key2);
+        Rio_writen(connfd, message, strlen(message));
       }
       else if (values1 == NULL) {
         sprintf(message, "%s not found\n", key1);
+        Rio_writen(connfd, message, strlen(message));
       }
       else if (values2 == NULL) {
         sprintf(message, "%s not found\n", key2);
+        Rio_writen(connfd, message, strlen(message));
       }
       else {
         value_array *intersection = get_intersection(values1, values2);
         char values[MAXBUF];
         value_array_to_str(intersection, values, MAXBUF);
         sprintf(message, "%s,%s%s", key1, key2, values);
+        Rio_writen(connfd, message, strlen(message));
       }
-      Rio_writen(connfd, message, strlen(message));
     }
   }
   Close(connfd);
