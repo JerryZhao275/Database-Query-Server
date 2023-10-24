@@ -73,12 +73,23 @@ void request_partition(void) {
     return;
   }
 
+  char strpartition[MAXBUF];
   Rio_readinitb(&rio, clientfd);
-  Rio_writen(clientfd, request, REQUESTLINELEN);
-  Rio_readlineb(&rio, request, REQUESTLINELEN);
+  Rio_writen(&rio, request, REQUESTLINELEN);
 
-  partition.db_size = atoi(request);
-  partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
+  ssize_t partition_size;
+  Rio_readlineb(&rio, strpartition, REQUESTLINELEN);
+  sscanf(strpartition, "%zd", &partition_size);
+  partition.db_size = partition_size;
+  partition.m_ptr = Malloc(partition_size);
+
+
+  // Rio_readinitb(&rio, clientfd);
+  // Rio_writen(clientfd, request, REQUESTLINELEN);
+  // Rio_readlineb(&rio, request, REQUESTLINELEN);
+
+  // partition.db_size = atoi(request);
+  // partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
 
   if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
     fprintf(stderr, "Rio_readnb error: %i\n", errno);
