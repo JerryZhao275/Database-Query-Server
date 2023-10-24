@@ -68,10 +68,10 @@ void request_partition(void) {
   snprintf(request, REQUESTLINELEN, "%i\n", NODE_ID);
 
   int clientfd = Open_clientfd(HOSTNAME, port_num);
-  // if (clientfd < 0) {
-  //   fprintf(stderr, "Open_clientfd error: %i\n", errno);
-  //   return;
-  // }
+  if (clientfd < 0) {
+    fprintf(stderr, "Open_clientfd error: %i\n", errno);
+    return;
+  }
 
   char strpartition[MAXBUF];
   Rio_readinitb(&rio, clientfd);
@@ -83,15 +83,14 @@ void request_partition(void) {
   partition.db_size = partition_size;
   partition.m_ptr = Malloc(partition_size);
   Rio_readnb(&rio, partition.m_ptr, partition.db_size);
-  build_hash_table(&partition);
 
-  // if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
-  //   fprintf(stderr, "Rio_readnb error: %i\n", errno);
-  //   free(partition.m_ptr);
-  // } 
-  // else {
-  //   build_hash_table(&partition);
-  // }
+  if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
+    fprintf(stderr, "Rio_readnb error: %i\n", errno);
+    free(partition.m_ptr);
+  } 
+  else {
+    build_hash_table(&partition);
+  }
 
   Close(clientfd);
 }
@@ -141,7 +140,7 @@ value_array* forward_request(char* query, int node_id) {
   int remote_clientfd = Open_clientfd(HOSTNAME, port_num);
 
   Rio_readinitb(&rio, remote_clientfd);
-  Rio_writen(remote_clientfd, query, REQUESTLINELEN);
+  Rio_writen(remote_clientfd, query, MAXBUF);
   Rio_readlineb(&rio, buf, MAXBUF);
 
   Close(remote_clientfd);
