@@ -160,7 +160,6 @@ void *thread(void *vargp) {
   char query[REQUESTLINELEN]; // Client query
 
   while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
-    char message[MAXBUF]; // Message written to client
     request_line_to_key(query);
 
     if (strlen(query) == 0) {
@@ -168,6 +167,7 @@ void *thread(void *vargp) {
     }
     // Single key lookup
     else if (strchr(query, ' ') == NULL) {
+      char message[MAXBUF]; // Message written to client
       int node = find_node(query, TOTAL_NODES);
       value_array *values;
       if (NODE_ID == node) {
@@ -194,9 +194,11 @@ void *thread(void *vargp) {
           sprintf(message, "%s%s", query, strvalues);
         }
       }
+      Rio_writen(connfd, message, strlen(message));
     }
     // Intersection query
     else {
+      char message[MAXBUF]; // Message written to client
       char *key1 = strtok(query, " ");
       // Get second key by passing NULL into strtok
       char *key2 = strtok(NULL, " ");
@@ -248,8 +250,8 @@ void *thread(void *vargp) {
         value_array_to_str(intersection, values, MAXBUF);
         sprintf(message, "%s,%s%s", key1, key2, values);
       }
+      Rio_writen(connfd, message, strlen(message));
     }
-    Rio_writen(connfd, message, strlen(message));
   }
   Close(connfd);
   return NULL;
