@@ -73,13 +73,10 @@ void request_partition(void) {
     return;
   }
 
-  printf("BEFORE READLINE, %i", clientfd);
   char strpartition[MAXBUF];
   Rio_readinitb(&rio, clientfd);
   Rio_writen(clientfd, request, REQUESTLINELEN);
   Rio_readlineb(&rio, strpartition, REQUESTLINELEN);
-
-  printf("AFTER READLINE, %i", clientfd);
 
   ssize_t partition_size;
   sscanf(strpartition, "%zd", &partition_size);
@@ -93,7 +90,6 @@ void request_partition(void) {
   else {
     build_hash_table(&partition);
   }
-  printf("AFTER READLINE 2, %i", clientfd);
 
   Close(clientfd);
 }
@@ -198,7 +194,6 @@ void *thread(void *vargp) {
           sprintf(message, "%s%s", query, strvalues);
         }
       }
-      Rio_writen(connfd, message, strlen(message));
     }
     // Intersection query
     else {
@@ -253,8 +248,8 @@ void *thread(void *vargp) {
         value_array_to_str(intersection, values, MAXBUF);
         sprintf(message, "%s,%s%s", key1, key2, values);
       }
-      Rio_writen(connfd, message, strlen(message));
     }
+    Rio_writen(connfd, message, strlen(message));
   }
   Close(connfd);
   return NULL;
