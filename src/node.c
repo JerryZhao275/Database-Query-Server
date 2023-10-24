@@ -61,7 +61,7 @@ database partition = {NULL, 0, NULL};
  *         - Set the global partition variable. 
  */
 void request_partition(void) {
-  char port_num[8];
+  char *port_num[8];
   rio_t rio;
   port_number_to_str(PARENT_PORT, port_num);
   char request[REQUESTLINELEN];
@@ -73,23 +73,12 @@ void request_partition(void) {
     return;
   }
 
-  char strpartition[MAXBUF];
   Rio_readinitb(&rio, clientfd);
-  Rio_writen(&rio, request, REQUESTLINELEN);
+  Rio_writen(clientfd, request, REQUESTLINELEN);
+  Rio_readlineb(&rio, request, REQUESTLINELEN);
 
-  ssize_t partition_size;
-  Rio_readlineb(&rio, strpartition, REQUESTLINELEN);
-  sscanf(strpartition, "%zd", &partition_size);
-  partition.db_size = partition_size;
-  partition.m_ptr = Malloc(partition_size);
-
-
-  // Rio_readinitb(&rio, clientfd);
-  // Rio_writen(clientfd, request, REQUESTLINELEN);
-  // Rio_readlineb(&rio, request, REQUESTLINELEN);
-
-  // partition.db_size = atoi(request);
-  // partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
+  partition.db_size = atoi(request);
+  partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
 
   if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
     fprintf(stderr, "Rio_readnb error: %i\n", errno);
@@ -108,8 +97,8 @@ void request_partition(void) {
 value_array* forward_request(char* query, int node_id) {
   printf("FORWARDED QUERY AND NODE ID: %s, %i\n", query, node_id);
   rio_t rio;
-  char port_num[8];
-  char buf[MAXBUF];
+  char* port_num[8];
+  char* buf[MAXBUF];
   value_array *values = NULL;
 
   port_number_to_str(NODES[node_id].port_number, port_num);
