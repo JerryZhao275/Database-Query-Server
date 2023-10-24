@@ -95,7 +95,6 @@ void request_partition(void) {
 // Forwards a lookup request to a remote node
 // Returns the value array of the query, and NULL otherwise
 value_array* forward_request(char* query, int node_id) {
-  printf("FORWARDED QUERY AND NODE ID: %s, %i\n", query, node_id);
   rio_t rio;
   char port_num[8];
   char buf[MAXBUF];
@@ -109,38 +108,13 @@ value_array* forward_request(char* query, int node_id) {
   Rio_readlineb(&rio, buf, MAXBUF);
 
   Close(remote_clientfd);
-  printf("WHATS IN BUFFER: %s\n", buf);
   values = create_value_array(buf);
 
-  printf("VAL ARR VALUE: %s\n", values);
   return values;
-  
-  // if ((pid = Fork()) == 0) {
-  //   int remote_connfd;
-  //   // Establish a new connection to the remote node
-  //   remote_connfd = connfd;
-  //   // remote_connfd = Open_clientfd(HOSTNAME, port);
-
-  //   if (remote_connfd < 0) {
-  //     fprintf(stderr, "Open_clientfd error: %s\n", strerror(errno));
-  //     exit(1);
-  //   }
-
-  //   NODE_ID = node_id;
-
-  //   sprintf(message, "Before node serve\n");
-  //   Rio_writen(connfd, message, strlen(message)); 
-
-  //   //node_serve();
-  //   start_node(node_id);
-
-  //   Close(remote_connfd);
-  // }
 }
 
 
 // ADD COMMENT EVENTUALLY
-// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
 void *thread(void *vargp) {
   int connfd = *((int *)vargp);
   Pthread_detach(pthread_self());
@@ -153,20 +127,17 @@ void *thread(void *vargp) {
 
   while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
     request_line_to_key(query);
-    printf("QUERY: %s\n", query);
 
     if (strlen(query) == 0) {
       break;
     }
     // Single key lookup
     else if (strchr(query, ' ') == NULL) {
-      printf("1: query and node ID: %s, %i\n", query, NODE_ID);
       int node = find_node(query, TOTAL_NODES);
       value_array *values;
       if (NODE_ID == node) {
         int index = lookup_find(partition.h_table, query);
         if (index != -1) {
-          printf("2: query and node ID: %s, %i\n", query, NODE_ID);
           bucket bucket = partition.h_table->buckets[index];
           values = get_value_array(bucket.word);
           char strvalues[MAXBUF];
@@ -174,68 +145,24 @@ void *thread(void *vargp) {
           sprintf(message, "%s%s", query, strvalues);
         }
         else {
-          printf("3: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
         }
       } 
       else {
-        printf("4: query and node ID: %s, %i\n", query, NODE_ID);
         values = forward_request(query, node);
         if (values == NULL) {
-          printf("5: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
         } 
         else {
-          printf("6: query and node ID: %s, %i\n", query, NODE_ID);
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
         }
       }
       Rio_writen(connfd, message, strlen(message));
-
-      // printf("1: query and node ID: %s, %i\n", query, NODE_ID);
-      // int node = find_node(query, TOTAL_NODES);
-      // if (node == NODE_ID) {
-      //   int index = lookup_find(partition.h_table, query);
-      //   if (index != -1) {
-      //     printf("2: query and node ID: %s, %i\n", query, NODE_ID);
-      //     bucket bucket = partition.h_table->buckets[index];
-      //     char values[MAXBUF];
-      //     value_array_to_str(get_value_array(bucket.word), values, MAXBUF);
-      //     sprintf(message, "%s%s", bucket.word, values);
-      //   }
-      //   else {
-      //     printf("3: query and node ID: %s, %i\n", query, NODE_ID);
-      //     sprintf(message, "%s not found\n", query);
-      //   }
-      //   Rio_writen(connfd, message, strlen(message));
-      // }
-      // else {
-      //   printf("4: query and node ID: %s, %i\n", query, NODE_ID);
-      //   char *key = strtok(query, " ");
-      //   node = find_node(key, TOTAL_NODES);
-      //   char *keywithnull = strdup(key);
-      //   keywithnull[strlen(keywithnull)] = '\n';
-
-      //   value_array *values = forward_request(keywithnull, node);
-
-      //   if (values == NULL) {
-      //     printf("5: query and node ID: %s, %i\n", query, NODE_ID);
-      //     sprintf(message, "%s not found\n", key);
-      //   }
-      //   else {
-      //     printf("6: query and node ID: %s, %i\n", query, NODE_ID);
-      //     char strvalues[MAXBUF];
-      //     value_array_to_str(values, strvalues, MAXBUF);
-      //     sprintf(message, "%s%s", key, strvalues);
-      //   }
-      //   Rio_writen(connfd, message, strlen(message));
-      // }
     }
     // Intersection query
     else {
-      printf("INTERSECTION, %s\n", query);
       char *key1 = strtok(query, " ");
       // Get second key by passing NULL into strtok
       char *key2 = strtok(NULL, " ");
@@ -245,7 +172,6 @@ void *thread(void *vargp) {
       value_array *values2;
 
       if (node1 == NODE_ID) {
-        printf("KEY 1 IN CURRENT NODE, %s\n", key2);
         int index1 = lookup_find(partition.h_table, key1);
         if (index1 == -1) {
           values1 = NULL;
@@ -260,7 +186,6 @@ void *thread(void *vargp) {
       }
 
       if (node2 == NODE_ID) {
-        printf("KEY 2 IN CURRENT NODE, %s\n", key2);
         int index2 = lookup_find(partition.h_table, key2);
         if (index2 == -1) {
           values2 = NULL;
@@ -274,55 +199,6 @@ void *thread(void *vargp) {
         values2 = forward_request(key2, node2);
       }
 
-      // if (node1 == NODE_ID && node2 == NODE_ID) {
-      //   printf("BOTH NODES FOUND, %s, %s\n", key1, key2);
-      //   int index1 = lookup_find(partition.h_table, key1);
-      //   int index2 = lookup_find(partition.h_table, key2);
-      //   if (index1 == -1) {
-      //     values1 = NULL;
-      //   }
-      //   else {
-      //     bucket bucket1 = partition.h_table->buckets[index1];
-      //     values1 = get_value_array(bucket1.word);
-      //   }
-      //   if (index2 == -1) {
-      //     values2 = NULL;
-      //   }
-      //   else {
-      //     bucket bucket2 = partition.h_table->buckets[index2];
-      //     values2 = get_value_array(bucket2.word);
-      //   }
-      // } 
-      // else if (node1 == NODE_ID && node2 != NODE_ID) {
-      //   printf("FIRST NODE FOUND, SECOND NODE MISSED, %s, %s\n", key1, key2);
-      //   int index2 = lookup_find(partition.h_table, key2);
-      //   if (index2 == -1) {
-      //     values2 = NULL;
-      //   }
-      //   else {
-      //     bucket bucket2 = partition.h_table->buckets[index2];
-      //     values2 = get_value_array(bucket2.word);
-      //   }
-      //   values1 = forward_request(key1, node1);
-      // } 
-      // else if (node1 == NODE_ID && node2 != NODE_ID) {
-      //   printf("FIRST NODE MISSED, SECOND NODE FOUND, %s, %s\n", key1, key2);
-      //   int index1 = lookup_find(partition.h_table, key2);
-      //   if (index1 == -1) {
-      //     values1 = NULL;
-      //   }
-      //   else {
-      //     bucket bucket1 = partition.h_table->buckets[index1];
-      //     values1 = get_value_array(bucket1.word);
-      //   }
-      //   values2 = forward_request(key2, node2);
-      // } 
-      // else {
-      //   values1 = forward_request(key1, node1);
-      //   values2 = forward_request(key2, node2);
-      // }
-
-      printf("FIRST AND SECOND RSP VALUES, %s, %s\n", values1, values2);
       if (values1 == NULL && values2 == NULL) {
         sprintf(message, "%s not found\n%s not found\n", key1, key2);
       }
@@ -339,138 +215,6 @@ void *thread(void *vargp) {
         sprintf(message, "%s,%s%s", key1, key2, values);
       }
       Rio_writen(connfd, message, strlen(message));
-
-      // char *key1 = strtok(query, " ");
-      // // Get second key by passing NULL into strtok
-      // char *key2 = strtok(NULL, " ");
-      // printf("INTERSECTION: %s, %s\n", key1, key2);
-      // int index1 = lookup_find(partition.h_table, key1);
-      // int index2 = lookup_find(partition.h_table, key2);
-      // int node1 = find_node(key1, TOTAL_NODES);
-      // int node2 = find_node(key2, TOTAL_NODES);
-      // bucket bucket1;
-      // bucket bucket2;
-
-      // // Both keys are found
-      // if (node1 == NODE_ID && node2 == NODE_ID) {
-      //   printf("BOTH FOUND: %s, %s\n", key1, key2);
-      //   if (index1 != -1 && index2 != -1) {
-      //     bucket1 = partition.h_table->buckets[index1];
-      //     bucket2 = partition.h_table->buckets[index2];
-      //     value_array *intersection = get_intersection(get_value_array(bucket1.word), get_value_array(bucket2.word));
-      //     char values[MAXBUF];
-      //     value_array_to_str(intersection, values, MAXBUF);
-      //     sprintf(message, "%s,%s%s", bucket1.word, bucket2.word, values);
-      //   }
-      //   else if (index1 == -1 && index2 == -1) {
-      //     sprintf(message, "%s not found\n%s not found\n", key1, key2);
-      //   }
-      //   else if (index1 == -1) {
-      //     sprintf(message, "%s not found\n", key1);
-      //   }
-      //   else {
-      //     sprintf(message, "%s not found\n", key2);
-      //   }
-      // }
-      // else if (node1 != NODE_ID && node2 == NODE_ID) {
-      //   printf("FIRST NODE MISSED, 2ND NODE FOUND: %s, %s\n", key1, key2);
-      //   bucket bucket;
-      //   value_array *key_2_values;
-
-      //   if (index2 != -1) {
-      //     bucket = partition.h_table->buckets[index2];
-      //     key_2_values = get_value_array(bucket.word);
-      //   }
-
-      //   char *keywithnull = strdup(key1);
-      //   keywithnull[strlen(keywithnull)] = '\n';
-      //   value_array *values = forward_request(keywithnull, node1, 1);
-
-      //   printf("KEYS IN THIS, %s, %s\n", key1, key2);
-
-      //   if (values == NULL && index2 == -1) {
-      //     sprintf(message, "%s not found\n%s not found\n", key1, key2);
-      //   }
-      //   else if (values == NULL) {
-      //     sprintf(message, "%s not found\n", key1);
-      //   }
-      //   else if (index2 == -1) {
-      //     sprintf(message, "%s not found\n", key2);
-      //   }
-      //   else {
-      //     printf("BEFORE GET INTERSECTION, %s, %s\n", key1, key2);
-      //     value_array *intersection = get_intersection(key_2_values, values);
-      //     char strvalues[MAXBUF];
-      //     value_array_to_str(intersection, strvalues, MAXBUF);
-
-      //     printf("TESTING, %s\n", strvalues);
-
-      //     request_line_to_key(key1);
-
-      //     sprintf(message, "%s,%s%s", key1, key2, strvalues);
-      //   }
-      // }
-      // else if (node1 == NODE_ID && node2 != NODE_ID) {
-      //   printf("FIRST NODE FOUND, 2ND NODE MISSED, %s, %s\n", key1, key2);
-      //   bucket bucket;
-      //   value_array *key_1_values;
-
-      //   char *keywithnull = strdup(key2);
-      //   keywithnull[strlen(keywithnull)] = '\n';
-      //   value_array *values = forward_request(keywithnull, node2, 1);
-
-      //   if (values == NULL && index1 == -1) {
-      //     sprintf(message, "%s not found\n%s not found\n", key1, key2);
-      //   }
-      //   else if (index1 == -1) {
-      //     sprintf(message, "%s not found\n", key1);
-      //   }
-      //   else if (values == NULL) {
-      //     sprintf(message, "%s not found\n", key2);
-      //   }
-      //   else {
-      //     bucket = partition.h_table->buckets[index1];
-      //     key_1_values = get_value_array(bucket.word);
-
-      //     value_array *intersection = get_intersection(key_1_values, values);
-      //     char strvalues[MAXBUF];
-      //     value_array_to_str(intersection, strvalues, MAXBUF);
-      //     request_line_to_key(key1);
-
-      //     sprintf(message, "%s,%s%s", key1, key2, strvalues);
-      //   }
-      // }
-      // // Both nodes not found
-      // else {
-      //   printf("BOTH NODES NOT FOUND, %s, %s\n", key1, key2);
-      //   value_array *key_1_values;
-      //   value_array *key_2_values;
-      //   char *key1withnull = strdup(key1);
-      //   key1withnull[strlen(key1withnull)] = '\n';
-      //   key_1_values = forward_request(key1withnull, node1, 1);
-
-      //   char *key2withnull = strdup(key2);
-      //   key2withnull[strlen(key2withnull)] = '\n';
-      //   key_2_values = forward_request(key2withnull, node2, 1);
-
-      //   if (key_1_values == NULL && key_2_values == NULL) {
-      //     sprintf(message, "%s not found\n%s not found\n", key1, key2);
-      //   }
-      //   else if (key_1_values == NULL) {
-      //     sprintf(message, "%s not found\n", key1);
-      //   }
-      //   else if (key_2_values == NULL) {
-      //     sprintf(message, "%s not found\n", key2);
-      //   }
-      //   else {
-      //     value_array *intersection = get_intersection(key_1_values, key_2_values);
-      //     char strvalues[MAXBUF];
-      //     value_array_to_str(intersection, strvalues, MAXBUF);
-      //     request_line_to_key(key1);
-      //     request_line_to_key(key2);
-      //     sprintf(message, "%s,%s%s", key1, key2, strvalues);
-      //   }
-      // }
     }
   }
   Close(connfd);
@@ -485,9 +229,6 @@ void *thread(void *vargp) {
  *         use to accept incoming connections. This file descriptor is stored in
  *         NODES[NODE_ID].listen_fd. 
 */
-// ADD COMMENT EVENTUALLY
-// main function in echoservert.c
-// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
 void node_serve(void) {
   int listenfd, *connfdp;
   socklen_t clientlen;

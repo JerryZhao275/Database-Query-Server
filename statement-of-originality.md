@@ -10,10 +10,12 @@ declaration: >-
   own work except for the references listed below
 
 # sign *your* name and uid here
-name: 
-uid: 
+name: Jerry Zhao
+uid: u7490271
 
 # list numbered references below (replace the example with your own references) 
 ---
 # References
-- [1] Example Author. 2023. example code video. Retrieved from https://example.com/video
+- [1] COMP2310 Lab 10. 2023. echoservert.c code. Retrieved from https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
+- [2] StackOverflow. 2012. Rio_writen error. Retrieved from https://stackoverflow.com/questions/11258781/bad-file-descriptor-with-linux-socket-write-bad-file-descriptor-c
+
