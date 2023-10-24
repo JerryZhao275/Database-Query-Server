@@ -73,16 +73,12 @@ void request_partition(void) {
     return;
   }
 
-  char strpartition[MAXBUF];
   Rio_readinitb(&rio, clientfd);
   Rio_writen(clientfd, request, REQUESTLINELEN);
-  Rio_readlineb(&rio, strpartition, REQUESTLINELEN);
+  Rio_readlineb(&rio, request, REQUESTLINELEN);
 
-  ssize_t partition_size;
-  sscanf(strpartition, "%zd", &partition_size);
-  partition.db_size = partition_size;
-  partition.m_ptr = Malloc(partition_size);
-  Rio_readnb(&rio, partition.m_ptr, partition.db_size);
+  partition.db_size = atoi(request);
+  partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
 
   if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
     fprintf(stderr, "Rio_readnb error: %i\n", errno);
@@ -95,42 +91,11 @@ void request_partition(void) {
   Close(clientfd);
 }
 
-// void request_partition(void) {
-//   char port_num[8];
-//   rio_t rio;
-//   port_number_to_str(PARENT_PORT, port_num);
-//   char request[REQUESTLINELEN];
-//   snprintf(request, REQUESTLINELEN, "%i\n", NODE_ID);
-
-//   int clientfd = Open_clientfd(HOSTNAME, port_num);
-//   if (clientfd < 0) {
-//     fprintf(stderr, "Open_clientfd error: %i\n", errno);
-//     return;
-//   }
-
-//   Rio_readinitb(&rio, clientfd);
-//   Rio_writen(clientfd, request, REQUESTLINELEN);
-//   Rio_readlineb(&rio, request, REQUESTLINELEN);
-
-//   partition.db_size = atoi(request);
-//   partition.m_ptr = Malloc(sizeof(char) * partition.db_size);
-
-//   if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
-//     fprintf(stderr, "Rio_readnb error: %i\n", errno);
-//     free(partition.m_ptr);
-//   } 
-//   else {
-//     build_hash_table(&partition);
-//   }
-
-//   Close(clientfd);
-// }
-
-
 
 // Forwards a lookup request to a remote node
 // Returns the value array of the query, and NULL otherwise
 value_array* forward_request(char* query, int node_id) {
+  printf("FORWARDED QUERY AND NODE ID: %s, %i\n", query, node_id);
   rio_t rio;
   char port_num[8];
   char buf[MAXBUF];
@@ -140,17 +105,20 @@ value_array* forward_request(char* query, int node_id) {
   int remote_clientfd = Open_clientfd(HOSTNAME, port_num);
 
   Rio_readinitb(&rio, remote_clientfd);
-  Rio_writen(remote_clientfd, query, MAXBUF);
+  Rio_writen(remote_clientfd, query, REQUESTLINELEN);
   Rio_readlineb(&rio, buf, MAXBUF);
 
   Close(remote_clientfd);
+  printf("WHATS IN BUFFER: %s\n", buf);
   values = create_value_array(buf);
 
+  printf("VAL ARR VALUE: %s\n", values);
   return values;
 }
 
 
 // ADD COMMENT EVENTUALLY
+// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
 void *thread(void *vargp) {
   int connfd = *((int *)vargp);
   Pthread_detach(pthread_self());
@@ -159,50 +127,54 @@ void *thread(void *vargp) {
   rio_t rio;
   Rio_readinitb(&rio, connfd);
   char query[REQUESTLINELEN]; // Client query
+  char message[MAXBUF]; // Message written to client
 
   while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
     request_line_to_key(query);
+    printf("QUERY: %s\n", query);
 
     if (strlen(query) == 0) {
       break;
     }
     // Single key lookup
     else if (strchr(query, ' ') == NULL) {
-      char message[MAXBUF]; // Message written to client
+      printf("1: query and node ID: %s, %i\n", query, NODE_ID);
       int node = find_node(query, TOTAL_NODES);
       value_array *values;
       if (NODE_ID == node) {
         int index = lookup_find(partition.h_table, query);
         if (index != -1) {
+          printf("2: query and node ID: %s, %i\n", query, NODE_ID);
           bucket bucket = partition.h_table->buckets[index];
           values = get_value_array(bucket.word);
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
-          Rio_writen(connfd, message, strlen(message));
         }
         else {
+          printf("3: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
-          Rio_writen(connfd, message, strlen(message));
         }
       } 
       else {
+        printf("4: query and node ID: %s, %i\n", query, NODE_ID);
         values = forward_request(query, node);
         if (values == NULL) {
+          printf("5: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
-          Rio_writen(connfd, message, strlen(message));
         } 
         else {
+          printf("6: query and node ID: %s, %i\n", query, NODE_ID);
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
-          Rio_writen(connfd, message, strlen(message));
         }
       }
+      Rio_writen(connfd, message, strlen(message));
     }
     // Intersection query
     else {
-      char message[MAXBUF]; // Message written to client
+      printf("INTERSECTION, %s\n", query);
       char *key1 = strtok(query, " ");
       // Get second key by passing NULL into strtok
       char *key2 = strtok(NULL, " ");
@@ -211,57 +183,53 @@ void *thread(void *vargp) {
       value_array *values1;
       value_array *values2;
 
-      if (node1 != -1) {
-        if (node1 == NODE_ID) {
-          int index1 = lookup_find(partition.h_table, key1);
-          if (index1 == -1) {
-            values1 = NULL;
-          }
-          else {
-            bucket bucket1 = partition.h_table->buckets[index1];
-            values1 = get_value_array(bucket1.word);
-          }
+      if (node1 == NODE_ID) {
+        printf("KEY 1 IN CURRENT NODE, %s\n", key2);
+        int index1 = lookup_find(partition.h_table, key1);
+        if (index1 == -1) {
+          values1 = NULL;
         }
         else {
-          values1 = forward_request(key1, node1);
+          bucket bucket1 = partition.h_table->buckets[index1];
+          values1 = get_value_array(bucket1.word);
         }
       }
+      else {
+        values1 = forward_request(key1, node1);
+      }
 
-      if (node2 != -1) {
-        if (node2 == NODE_ID) {
-          int index2 = lookup_find(partition.h_table, key2);
-          if (index2 == -1) {
-            values2 = NULL;
-          }
-          else {
-            bucket bucket2 = partition.h_table->buckets[index2];
-            values2 = get_value_array(bucket2.word);
-          }
-        } 
+      if (node2 == NODE_ID) {
+        printf("KEY 2 IN CURRENT NODE, %s\n", key2);
+        int index2 = lookup_find(partition.h_table, key2);
+        if (index2 == -1) {
+          values2 = NULL;
+        }
         else {
-          values2 = forward_request(key2, node2);
+          bucket bucket2 = partition.h_table->buckets[index2];
+          values2 = get_value_array(bucket2.word);
         }
+      } 
+      else {
+        values2 = forward_request(key2, node2);
       }
 
+      printf("FIRST AND SECOND RSP VALUES, %s, %s\n", values1, values2);
       if (values1 == NULL && values2 == NULL) {
         sprintf(message, "%s not found\n%s not found\n", key1, key2);
-        Rio_writen(connfd, message, strlen(message));
       }
       else if (values1 == NULL) {
         sprintf(message, "%s not found\n", key1);
-        Rio_writen(connfd, message, strlen(message));
       }
       else if (values2 == NULL) {
         sprintf(message, "%s not found\n", key2);
-        Rio_writen(connfd, message, strlen(message));
       }
       else {
         value_array *intersection = get_intersection(values1, values2);
         char values[MAXBUF];
         value_array_to_str(intersection, values, MAXBUF);
         sprintf(message, "%s,%s%s", key1, key2, values);
-        Rio_writen(connfd, message, strlen(message));
       }
+      Rio_writen(connfd, message, strlen(message));
     }
   }
   Close(connfd);
