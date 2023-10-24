@@ -158,9 +158,9 @@ void *thread(void *vargp) {
   rio_t rio;
   Rio_readinitb(&rio, connfd);
   char query[REQUESTLINELEN]; // Client query
-  char message[MAXBUF]; // Message written to client
 
   while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
+    char message[MAXBUF]; // Message written to client
     request_line_to_key(query);
 
     if (strlen(query) == 0) {
