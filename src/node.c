@@ -98,8 +98,8 @@ value_array* forward_request(char* query, int node_id) {
   printf("FORWARDED QUERY AND NODE ID: %s, %i\n", query, node_id);
   rio_t rio;
   char* port_num[8];
-  char* buf[MAXBUF];
-  char* querywithnull[MAXBUF];
+  char* buf[MAXBUF];  char* querywithnull[MAXBUF];
+
   value_array *values = NULL;
 
   port_number_to_str(NODES[node_id].port_number, port_num);
@@ -109,7 +109,7 @@ value_array* forward_request(char* query, int node_id) {
 
   sprintf(querywithnull, "%s\n", query);
   Rio_writen(remote_clientfd, querywithnull, strlen(querywithnull));
-
+  
   Rio_readlineb(&rio, buf, MAXBUF);
 
   Close(remote_clientfd);
