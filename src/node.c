@@ -104,7 +104,7 @@ value_array* forward_request(char* query, int node_id) {
   int remote_clientfd = Open_clientfd(HOSTNAME, port_num);
 
   Rio_readinitb(&rio, remote_clientfd);
-  Rio_writen(remote_clientfd, query, REQUESTLINELEN);
+  Rio_writen(remote_clientfd, query, strlen(query));
   Rio_readlineb(&rio, buf, MAXBUF);
 
   Close(remote_clientfd);
