@@ -82,7 +82,7 @@ void request_partition(void) {
   sscanf(strpartition, "%zd", &partition_size);
   partition.db_size = partition_size;
   partition.m_ptr = Malloc(partition_size);
-
+  Rio_readnb(&rio, partition.m_ptr, partition.db_size);
   build_hash_table(&partition);
 
   // if (Rio_readnb(&rio, partition.m_ptr, partition.db_size) < 0) {
