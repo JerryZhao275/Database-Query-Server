@@ -92,10 +92,9 @@ void request_partition(void) {
 }
 
 
-// Forwards a lookup request to a remote node
-// Returns the value array of the query, and NULL otherwise
+// Forwards a look-up query to the node with given node_id
+// Returns type value_array of the values of the key and NULL if the key is not found
 value_array* forward_request(char* query, int node_id) {
-  printf("FORWARDED QUERY AND NODE ID: %s, %i\n", query, node_id);
   rio_t rio;
   char* port_num[8];
   char* buf[MAXBUF];  char* querywithnull[MAXBUF];
@@ -103,25 +102,24 @@ value_array* forward_request(char* query, int node_id) {
   value_array *values = NULL;
 
   port_number_to_str(NODES[node_id].port_number, port_num);
-  int remote_clientfd = Open_clientfd(HOSTNAME, port_num);
+  int remote_clientfd = Open_clientfd(HOSTNAME, port_num); // Open connection to remote node as a client
 
   Rio_readinitb(&rio, remote_clientfd);
 
-  sprintf(querywithnull, "%s\n", query);
-  Rio_writen(remote_clientfd, querywithnull, strlen(querywithnull));
+  sprintf(querywithnull, "%s\n", query); // Write null terminator to key
+  Rio_writen(remote_clientfd, querywithnull, strlen(querywithnull)); // Pass key to remote node
   
-  Rio_readlineb(&rio, buf, MAXBUF);
+  Rio_readlineb(&rio, buf, MAXBUF); // Read response from remote node
 
   Close(remote_clientfd);
-  printf("WHATS IN BUFFER: %s\n", buf);
   values = create_value_array(buf);
 
   return values;
 }
 
 
-// ADD COMMENT EVENTUALLY
-// https://gitlab.cecs.anu.edu.au/comp2310/2023/comp2310-2023-lab-pack-3/-/blob/main/lab10/src/echoservert.c
+// Thread function responsible for processing the query
+// Performs a look up or intersection query depending on the format of the user's response
 void *thread(void *vargp) {
   int connfd = *((int *)vargp);
   Pthread_detach(pthread_self());
@@ -133,21 +131,19 @@ void *thread(void *vargp) {
 
   while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
     request_line_to_key(query);
-    printf("QUERY: %s\n", query);
 
+    // Break if no response
     if (strlen(query) == 0) {
       break;
     }
     // Single key lookup
     else if (strchr(query, ' ') == NULL) {
       char message[MAXBUF]; // Message written to client
-      printf("1: query and node ID: %s, %i\n", query, NODE_ID);
       int node = find_node(query, TOTAL_NODES);
       value_array *values;
       if (NODE_ID == node) {
         int index = lookup_find(partition.h_table, query);
         if (index != -1) {
-          printf("2: query and node ID: %s, %i\n", query, NODE_ID);
           bucket bucket = partition.h_table->buckets[index];
           values = get_value_array(bucket.word);
           char strvalues[MAXBUF];
@@ -155,19 +151,15 @@ void *thread(void *vargp) {
           sprintf(message, "%s%s", query, strvalues);
         }
         else {
-          printf("3: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
         }
       } 
       else {
-        printf("4: query and node ID: %s, %i\n", query, NODE_ID);
         values = forward_request(query, node);
         if (values == NULL) {
-          printf("5: query and node ID: %s, %i\n", query, NODE_ID);
           sprintf(message, "%s not found\n", query);
         } 
         else {
-          printf("6: query and node ID: %s, %i\n", query, NODE_ID);
           char strvalues[MAXBUF];
           value_array_to_str(values, strvalues, MAXBUF);
           sprintf(message, "%s%s", query, strvalues);
@@ -178,7 +170,6 @@ void *thread(void *vargp) {
     // Intersection query
     else {
       char message[MAXBUF]; // Message written to client
-      printf("INTERSECTION, %s\n", query);
       char *key1 = strtok(query, " ");
       // Get second key by passing NULL into strtok
       char *key2 = strtok(NULL, " ");
@@ -187,10 +178,8 @@ void *thread(void *vargp) {
       value_array *values1;
       value_array *values2;
 
-      printf("KEY VALUES, %s,%s\n", key1, key2);
       if (key1 != NULL && key2 != NULL) {
         if (node1 == NODE_ID) {
-          printf("KEY 1 IN CURRENT NODE, %s\n", key2);
           int index1 = lookup_find(partition.h_table, key1);
           if (index1 == -1) {
             values1 = NULL;
@@ -205,7 +194,6 @@ void *thread(void *vargp) {
         }
 
         if (node2 == NODE_ID) {
-          printf("KEY 2 IN CURRENT NODE, %s\n", key2);
           int index2 = lookup_find(partition.h_table, key2);
           if (index2 == -1) {
             values2 = NULL;
@@ -219,7 +207,6 @@ void *thread(void *vargp) {
           values2 = forward_request(key2, node2);
         }
 
-        printf("KEYS, %s, %s\n", key1,key2);
         if (values1 == NULL && values2 == NULL) {
           sprintf(message, "%s not found\n%s not found\n", key1, key2);
         }
@@ -261,8 +248,8 @@ void node_serve(void) {
 
   while (1) {
     clientlen = sizeof(struct sockaddr_storage);
-    connfdp = Malloc(sizeof(int));                              // line:conc:echoservert:beginmalloc
-    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen); // line:conc:echoservert:endmalloc
+    connfdp = Malloc(sizeof(int));                             
+    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);
     Pthread_create(&tid, NULL, thread, connfdp);
   }
 }
