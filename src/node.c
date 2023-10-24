@@ -112,7 +112,6 @@ value_array* forward_request(char* query, int node_id) {
   printf("WHATS IN BUFFER: %s\n", buf);
   values = create_value_array(buf);
 
-  printf("VAL ARR VALUE: %s\n", values);
   return values;
 }
 
@@ -184,53 +183,56 @@ void *thread(void *vargp) {
       value_array *values1;
       value_array *values2;
 
-      if (node1 == NODE_ID) {
-        printf("KEY 1 IN CURRENT NODE, %s\n", key2);
-        int index1 = lookup_find(partition.h_table, key1);
-        if (index1 == -1) {
-          values1 = NULL;
+      printf("KEY VALUES, %s,%s\n", key1, key2);
+      if (key1 != NULL && key2 != NULL) {
+        if (node1 == NODE_ID) {
+          printf("KEY 1 IN CURRENT NODE, %s\n", key2);
+          int index1 = lookup_find(partition.h_table, key1);
+          if (index1 == -1) {
+            values1 = NULL;
+          }
+          else {
+            bucket bucket1 = partition.h_table->buckets[index1];
+            values1 = get_value_array(bucket1.word);
+          }
         }
         else {
-          bucket bucket1 = partition.h_table->buckets[index1];
-          values1 = get_value_array(bucket1.word);
+          values1 = forward_request(key1, node1);
         }
-      }
-      else {
-        values1 = forward_request(key1, node1);
-      }
 
-      if (node2 == NODE_ID) {
-        printf("KEY 2 IN CURRENT NODE, %s\n", key2);
-        int index2 = lookup_find(partition.h_table, key2);
-        if (index2 == -1) {
-          values2 = NULL;
+        if (node2 == NODE_ID) {
+          printf("KEY 2 IN CURRENT NODE, %s\n", key2);
+          int index2 = lookup_find(partition.h_table, key2);
+          if (index2 == -1) {
+            values2 = NULL;
+          }
+          else {
+            bucket bucket2 = partition.h_table->buckets[index2];
+            values2 = get_value_array(bucket2.word);
+          }
+        } 
+        else {
+          values2 = forward_request(key2, node2);
+        }
+
+        printf("KEYS, %s, %s\n", key1,key2);
+        if (values1 == NULL && values2 == NULL) {
+          sprintf(message, "%s not found\n%s not found\n", key1, key2);
+        }
+        else if (values1 == NULL) {
+          sprintf(message, "%s not found\n", key1);
+        }
+        else if (values2 == NULL) {
+          sprintf(message, "%s not found\n", key2);
         }
         else {
-          bucket bucket2 = partition.h_table->buckets[index2];
-          values2 = get_value_array(bucket2.word);
+          value_array *intersection = get_intersection(values1, values2);
+          char values[MAXBUF];
+          value_array_to_str(intersection, values, MAXBUF);
+          sprintf(message, "%s,%s%s", key1, key2, values);
         }
-      } 
-      else {
-        values2 = forward_request(key2, node2);
+        Rio_writen(connfd, message, strlen(message));
       }
-
-      printf("FIRST AND SECOND RSP VALUES, %s, %s\n", values1, values2);
-      if (values1 == NULL && values2 == NULL) {
-        sprintf(message, "%s not found\n%s not found\n", key1, key2);
-      }
-      else if (values1 == NULL) {
-        sprintf(message, "%s not found\n", key1);
-      }
-      else if (values2 == NULL) {
-        sprintf(message, "%s not found\n", key2);
-      }
-      else {
-        value_array *intersection = get_intersection(values1, values2);
-        char values[MAXBUF];
-        value_array_to_str(intersection, values, MAXBUF);
-        sprintf(message, "%s,%s%s", key1, key2, values);
-      }
-      Rio_writen(connfd, message, strlen(message));
     }
   }
   Close(connfd);
