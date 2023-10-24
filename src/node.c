@@ -208,33 +208,38 @@ void *thread(void *vargp) {
       value_array *values1;
       value_array *values2;
 
-      if (node1 == NODE_ID) {
-        int index1 = lookup_find(partition.h_table, key1);
-        if (index1 == -1) {
-          values1 = NULL;
+      if (node1 != -1) {
+        if (node1 == NODE_ID) {
+          int index1 = lookup_find(partition.h_table, key1);
+          if (index1 == -1) {
+            values1 = NULL;
+          }
+          else {
+            bucket bucket1 = partition.h_table->buckets[index1];
+            values1 = get_value_array(bucket1.word);
+          }
         }
         else {
-          bucket bucket1 = partition.h_table->buckets[index1];
-          values1 = get_value_array(bucket1.word);
+          values1 = forward_request(key1, node1);
         }
-      }
-      else {
-        values1 = forward_request(key1, node1);
       }
 
-      if (node2 == NODE_ID) {
-        int index2 = lookup_find(partition.h_table, key2);
-        if (index2 == -1) {
-          values2 = NULL;
-        }
+      if (node2 != -1) {
+        if (node2 == NODE_ID) {
+          int index2 = lookup_find(partition.h_table, key2);
+          if (index2 == -1) {
+            values2 = NULL;
+          }
+          else {
+            bucket bucket2 = partition.h_table->buckets[index2];
+            values2 = get_value_array(bucket2.word);
+          }
+        } 
         else {
-          bucket bucket2 = partition.h_table->buckets[index2];
-          values2 = get_value_array(bucket2.word);
+          values2 = forward_request(key2, node2);
         }
-      } 
-      else {
-        values2 = forward_request(key2, node2);
       }
+
 
       if (values1 == NULL && values2 == NULL) {
         sprintf(message, "%s not found\n%s not found\n", key1, key2);
