@@ -126,9 +126,8 @@ value_array* forward_request(char* query, int node_id) {
 // Performs a look up or intersection query depending on the format of the user's response
 void *thread(void *vargp) {
   Pthread_detach(pthread_self());
-
   while (1) { 
-    int connfd = sbuf_remove(&sbuf); /* Remove connfd from buffer */ //line:conc:pre:removeconnfd
+    int connfd = sbuf_remove(&sbuf);
     rio_t rio;
     Rio_readinitb(&rio, connfd);
     char query[REQUESTLINELEN]; // Client query
@@ -242,7 +241,6 @@ void *thread(void *vargp) {
  *         use to accept incoming connections. This file descriptor is stored in
  *         NODES[NODE_ID].listen_fd. 
 */
-
 void node_serve(void) {
   int listenfd, connfd;
   socklen_t clientlen=sizeof(struct sockaddr_in);
@@ -251,7 +249,7 @@ void node_serve(void) {
 
   listenfd = NODES[NODE_ID].listen_fd;
 
-  sbuf_init(&sbuf, REQUESTLINELEN);
+  sbuf_init(&sbuf, REQUESTLINELEN); // Initialise sbuf
   for (int i = 0; i < TOTAL_NODES; i++) { // Create worker threads
 	  Pthread_create(&tid, NULL, thread, NULL); 
   }
@@ -259,8 +257,6 @@ void node_serve(void) {
   while (1) {
     connfd = Accept(listenfd, (SA *) &clientaddr, &clientlen);
 	  sbuf_insert(&sbuf, connfd); /* Insert connfd in buffer */
-
-    //Pthread_create(&tid, NULL, thread, connfdp);
   }
 }
 
