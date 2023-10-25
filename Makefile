@@ -11,10 +11,13 @@ all: db_server
 csapp.o: src/csapp/csapp.c
 	"$(CC)" $(CFLAGS) -c -w $^
 
+sbuf.o: src/csapp/sbuf.c
+	"$(CC)" $(CFLAGS) -c -w $^
+
 %.o : src/%.c 
 	"$(CC)"	$(CFLAGS) -c $^
 
-db_server : node.o utils.o csapp.o
+db_server : node.o utils.o csapp.o sbuf.o
 	"$(CC)" $(CFLAGS) -o $@ $^
 
 .PHONY: clean

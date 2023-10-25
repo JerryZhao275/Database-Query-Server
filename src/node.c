@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "csapp/sbuf.h"
 
 // You may assume that all requests sent to a node are less than this length
 #define REQUESTLINELEN 128
@@ -18,6 +19,9 @@ typedef struct node_info {
   int port_number; // port number
   int listen_fd;   // file descriptor of socket the node is using
 } node_info;
+
+
+sbuf_t sbuf; /* shared buffer of connected descriptors */
 
 /* Variables that all nodes will share */
 
@@ -121,113 +125,113 @@ value_array* forward_request(char* query, int node_id) {
 // Thread function responsible for processing the query
 // Performs a look up or intersection query depending on the format of the user's response
 void *thread(void *vargp) {
-  int connfd = *((int *)vargp);
   Pthread_detach(pthread_self());
-  Free(vargp);
 
-  rio_t rio;
-  Rio_readinitb(&rio, connfd);
-  char query[REQUESTLINELEN]; // Client query
+  while (1) { 
+    int connfd = sbuf_remove(&sbuf); /* Remove connfd from buffer */ //line:conc:pre:removeconnfd
+    rio_t rio;
+    Rio_readinitb(&rio, connfd);
+    char query[REQUESTLINELEN]; // Client query
 
-  while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
-    request_line_to_key(query);
+    while (Rio_readlineb(&rio, query, REQUESTLINELEN) != 0) {
+      request_line_to_key(query);
 
-    // Break if no response
-    if (strlen(query) == 0) {
-      break;
-    }
-    // Single key lookup
-    else if (strchr(query, ' ') == NULL) {
-      char message[MAXBUF]; // Message written to client
-      int node = find_node(query, TOTAL_NODES);
-      value_array *values;
-      if (NODE_ID == node) {
-        int index = lookup_find(partition.h_table, query);
-        if (index != -1) {
-          bucket bucket = partition.h_table->buckets[index];
-          values = get_value_array(bucket.word);
-          char strvalues[MAXBUF];
-          value_array_to_str(values, strvalues, MAXBUF);
-          sprintf(message, "%s%s", query, strvalues);
-        }
-        else {
-          sprintf(message, "%s not found\n", query);
-        }
-      } 
-      else {
-        values = forward_request(query, node);
-        if (values == NULL) {
-          sprintf(message, "%s not found\n", query);
-        } 
-        else {
-          char strvalues[MAXBUF];
-          value_array_to_str(values, strvalues, MAXBUF);
-          sprintf(message, "%s%s", query, strvalues);
-        }
+      // Break if no response
+      if (strlen(query) == 0) {
+        break;
       }
-      Rio_writen(connfd, message, strlen(message));
-    }
-    // Intersection query
-    else {
-      char message[MAXBUF]; // Message written to client
-      char *key1 = strtok(query, " ");
-      // Get second key by passing NULL into strtok
-      char *key2 = strtok(NULL, " ");
-      int node1 = find_node(key1, TOTAL_NODES);
-      int node2 = find_node(key2, TOTAL_NODES);
-      value_array *values1;
-      value_array *values2;
-
-      if (key1 != NULL && key2 != NULL) {
-        if (node1 == NODE_ID) {
-          int index1 = lookup_find(partition.h_table, key1);
-          if (index1 == -1) {
-            values1 = NULL;
+      // Single key lookup
+      else if (strchr(query, ' ') == NULL) {
+        char message[MAXBUF]; // Message written to client
+        int node = find_node(query, TOTAL_NODES);
+        value_array *values;
+        if (NODE_ID == node) {
+          int index = lookup_find(partition.h_table, query);
+          if (index != -1) {
+            bucket bucket = partition.h_table->buckets[index];
+            values = get_value_array(bucket.word);
+            char strvalues[MAXBUF];
+            value_array_to_str(values, strvalues, MAXBUF);
+            sprintf(message, "%s%s", query, strvalues);
           }
           else {
-            bucket bucket1 = partition.h_table->buckets[index1];
-            values1 = get_value_array(bucket1.word);
-          }
-        }
-        else {
-          values1 = forward_request(key1, node1);
-        }
-
-        if (node2 == NODE_ID) {
-          int index2 = lookup_find(partition.h_table, key2);
-          if (index2 == -1) {
-            values2 = NULL;
-          }
-          else {
-            bucket bucket2 = partition.h_table->buckets[index2];
-            values2 = get_value_array(bucket2.word);
+            sprintf(message, "%s not found\n", query);
           }
         } 
         else {
-          values2 = forward_request(key2, node2);
-        }
-
-        if (values1 == NULL && values2 == NULL) {
-          sprintf(message, "%s not found\n%s not found\n", key1, key2);
-        }
-        else if (values1 == NULL) {
-          sprintf(message, "%s not found\n", key1);
-        }
-        else if (values2 == NULL) {
-          sprintf(message, "%s not found\n", key2);
-        }
-        else {
-          value_array *intersection = get_intersection(values1, values2);
-          char values[MAXBUF];
-          value_array_to_str(intersection, values, MAXBUF);
-          sprintf(message, "%s,%s%s", key1, key2, values);
+          values = forward_request(query, node);
+          if (values == NULL) {
+            sprintf(message, "%s not found\n", query);
+          } 
+          else {
+            char strvalues[MAXBUF];
+            value_array_to_str(values, strvalues, MAXBUF);
+            sprintf(message, "%s%s", query, strvalues);
+          }
         }
         Rio_writen(connfd, message, strlen(message));
       }
+      // Intersection query
+      else {
+        char message[MAXBUF]; // Message written to client
+        char *key1 = strtok(query, " ");
+        // Get second key by passing NULL into strtok
+        char *key2 = strtok(NULL, " ");
+        int node1 = find_node(key1, TOTAL_NODES);
+        int node2 = find_node(key2, TOTAL_NODES);
+        value_array *values1;
+        value_array *values2;
+
+        if (key1 != NULL && key2 != NULL) {
+          if (node1 == NODE_ID) {
+            int index1 = lookup_find(partition.h_table, key1);
+            if (index1 == -1) {
+              values1 = NULL;
+            }
+            else {
+              bucket bucket1 = partition.h_table->buckets[index1];
+              values1 = get_value_array(bucket1.word);
+            }
+          }
+          else {
+            values1 = forward_request(key1, node1);
+          }
+
+          if (node2 == NODE_ID) {
+            int index2 = lookup_find(partition.h_table, key2);
+            if (index2 == -1) {
+              values2 = NULL;
+            }
+            else {
+              bucket bucket2 = partition.h_table->buckets[index2];
+              values2 = get_value_array(bucket2.word);
+            }
+          } 
+          else {
+            values2 = forward_request(key2, node2);
+          }
+
+          if (values1 == NULL && values2 == NULL) {
+            sprintf(message, "%s not found\n%s not found\n", key1, key2);
+          }
+          else if (values1 == NULL) {
+            sprintf(message, "%s not found\n", key1);
+          }
+          else if (values2 == NULL) {
+            sprintf(message, "%s not found\n", key2);
+          }
+          else {
+            value_array *intersection = get_intersection(values1, values2);
+            char values[MAXBUF];
+            value_array_to_str(intersection, values, MAXBUF);
+            sprintf(message, "%s,%s%s", key1, key2, values);
+          }
+          Rio_writen(connfd, message, strlen(message));
+        }
+      }
     }
+    Close(connfd);
   }
-  Close(connfd);
-  return NULL;
 }
 
 /** @brief The main server loop for a node. This will be called by a node after
@@ -238,19 +242,25 @@ void *thread(void *vargp) {
  *         use to accept incoming connections. This file descriptor is stored in
  *         NODES[NODE_ID].listen_fd. 
 */
+
 void node_serve(void) {
-  int listenfd, *connfdp;
-  socklen_t clientlen;
-  struct sockaddr_storage clientaddr;
-  pthread_t tid;
+  int listenfd, connfd;
+  socklen_t clientlen=sizeof(struct sockaddr_in);
+  struct sockaddr_in clientaddr;
+  pthread_t tid; 
 
   listenfd = NODES[NODE_ID].listen_fd;
 
+  sbuf_init(&sbuf, REQUESTLINELEN);
+  for (int i = 0; i < TOTAL_NODES; i++) { // Create worker threads
+	  Pthread_create(&tid, NULL, thread, NULL); 
+  }
+
   while (1) {
-    clientlen = sizeof(struct sockaddr_storage);
-    connfdp = Malloc(sizeof(int));                             
-    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);
-    Pthread_create(&tid, NULL, thread, connfdp);
+    connfd = Accept(listenfd, (SA *) &clientaddr, &clientlen);
+	  sbuf_insert(&sbuf, connfd); /* Insert connfd in buffer */
+
+    //Pthread_create(&tid, NULL, thread, connfdp);
   }
 }
 
