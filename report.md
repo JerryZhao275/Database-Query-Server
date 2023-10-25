@@ -1,6 +1,6 @@
 # Report
 
-**878 word count**
+**929 word count**
 
 ## Overview
 
@@ -20,15 +20,16 @@ When handling the query, `find_node()` is called on the respective key and check
 
 #### Multithreading
 
-Basic multithreading within the server was implemented through spawning new threads to handle new connection requests, allowing for concurrency within the server for each individual node. These individual threads are generated through the `thread()` function, which spawns a new thread before processing the client’s query. 
+Basic multithreading within the server was implemented through spawning an arbitrary number of threads to handle new connection requests, allowing for concurrency within the server for each individual node. These individual threads operate within the `node_serve()` function, which calls `Pthread_create()` to create a threadpool, and further assigns a thread upon client connection.
 
-This multithreading process can be observed in the `node_serve()` function, where the node waits for a new client connection and then calls `Pthread_create()`with `thread` as a parameter, generating a new thread to handle the query. This allows the `node_serve()` loop to reset and continue waiting for additional client connections.
+When observing the multithreading process, the node waits for a new client connection and then calls `sbuf_insert()`, assigning one of the individual threads to the client request. This is an efficient process for multithreading, in that only an arbitrary number of threads need to be created (in this case, 8 threads). 
 
 ## Design Decisions
 
 `forward_request()` was implemented with the assumption that the request is a standard lookup query. This allowed forwarding requests for regular lookups to be extremely efficient by simply calling the function if the key was not found in the partition. This was not much different for intersection queries as `forward_request()` was required to be called twice; on both keys of the query, and then taking the intersection of the returned values. Overall, implementing a helper function which processes a lookup query from a remote node improved the quality of the code and heavily reduces the code smells in the program.
 
-Multithreading was implemented before forwarding between nodes as it would save a lot of programming time. It allowed for less refactoring in comparison to first implementing forwarding between multiple nodes. Hence, reducing the probability of breaking the program’s functionality and introducing new code smells after implementation. The `echoservert.c` file for lab 10 was used as the initial skeleton of the multithreaded server, with `node_serve()` acting as the main function in the file, creating threads upon new user connections to nodes. 
+Multithreading was initially implemented before forwarding between nodes as it would save a lot of programming time. It allowed for less refactoring in comparison to first implementing forwarding between multiple nodes. Hence, reducing the probability of breaking the program’s functionality and introducing new code smells after implementation. The `echoservert.c` file for lab 10 was used as the initial skeleton of the multithreaded server, with `node_serve()` acting as the main function in the file, creating threads upon new user connections to nodes. 
+After implementing forwarding, multithreading was improved with reference to CMU's `echoservert_pre.c` (referenced in SoO) whilst utilising the `sbuf` package. This implementation of threadpooling can be much more memory efficient than having to spawn a new thread to handle each individual request.
 
 ## Observations
 
